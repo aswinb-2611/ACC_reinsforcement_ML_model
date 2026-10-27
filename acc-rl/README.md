@@ -89,18 +89,22 @@ tested with: `octave --eval "run_all"`.
 | Metric | AI (DQN) | Baseline (PD) |
 |--------|---------:|--------------:|
 | Collisions | **0** | **0** |
-| Gap error [m] | 6.29 | 6.24 |
-| Speed RMSE [m/s] | 2.80 | 2.61 |
-| RMS acceleration [m/s^2] | **0.88** | 0.91 |
-| RMS jerk [m/s^3] | 1.50 | **0.72** |
-| Worst minimum gap [m] | 4.00 | 5.00 |
+| Gap error [m] | 10.14 | **6.14** |
+| Speed RMSE [m/s] | **2.60** | 2.61 |
+| RMS acceleration [m/s^2] | **0.85** | 0.88 |
+| RMS jerk [m/s^3] | 1.43 | **0.69** |
+| Worst minimum gap [m] | 4.85 | 5.00 |
 
-The AI never crashes and is close to a carefully tuned conventional
-controller on gap and speed. It is slightly gentler on acceleration, but
-clearly less smooth (jerk), because it picks from 10 fixed accelerations
-instead of a continuous value. Full discussion: `REPORT_NOTES.md`,
-section 7. The 3D demo (`demo()`) is the best way to see the behaviour, and
-it runs live on screen.
+Plus a hard-stop stress test (60 drives where the car ahead brakes to a
+stop, emergency brake switched off): **AI 0 crashes, baseline 8**.
+
+The AI never crashes, ties or slightly beats a carefully tuned conventional
+controller on speed tracking and acceleration, and handles sudden stops
+far better. It pays for that with caution: it follows about 9 m further
+back than needed, so its gap error is larger. It is also less smooth
+(jerk), because it picks from 10 fixed accelerations instead of a
+continuous value. Full, honest discussion: `REPORT_NOTES.md`, section 7.
+The 3D demo (`demo()`) is the best way to see the behaviour.
 
 ---
 
@@ -189,8 +193,8 @@ it runs live on screen.
   sync every 2000 steps, gamma 0.99, fixed seed.
   800 episodes, epsilon 1.0 -> 0.05, learning rate 5e-4 -> 1e-4.
   The brain with the best crash-free mock-test score (21 drives) is kept.
-* **Baseline**: e = min(gap - d_safe, e_max); a = min(kv (25 - v), kp e + kd (v_lead - v)),
-  clipped to [-3, 2]. Tuned: kp = 0.45, kd = 0.70, kv = 1.25, e_max = 20 m.
+* **Baseline**: e = min(gap - d_safe, e_max); a = min(kv (25 - v), kp e + kd (v_lead - v) + ka a_lead),
+  clipped to [-3, 2]. Tuned: kp = 0.36, kd = 0.56, kv = 1.5625, e_max = 20 m, ka = 0.30.
 * **Testing**: 7 families x 15 = 105 unseen episodes, different seed and
   ranges from training, plus a family (`mixed`) never seen in training.
 

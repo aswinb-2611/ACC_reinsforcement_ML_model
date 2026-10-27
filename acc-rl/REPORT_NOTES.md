@@ -113,74 +113,105 @@ grid, so the search could have rejected it.
 
 ### 7.1 Training
 
-* 800 episodes, about 18 minutes in Octave on one CPU core.
-* Reward curve (`results/training_reward_curve.png`): starts around -100 to
-  -200 per episode (random pedals, frequent crashes), rises steadily, and
-  plateaus around 400 to 440 once exploration falls to 5% (episode 480).
-* Saved model: episode 770, mock-test score 435.1 on 18 validation drives,
-  with zero crashes.
+* 800 episodes, about 19 minutes in Octave on one CPU core.
+* Reward curve (`results/training_reward_curve.png`): starts far below
+  zero (random pedals, frequent crashes, each crash now costs -300), rises
+  steadily, and plateaus around 400 to 450 once exploration falls to 5%
+  (episode 480).
+* Three seeds were trained (run 9). Saved model: seed 1, episode 730,
+  mock-test score 428.7 on 21 validation drives, with zero crashes.
 
 ### 7.2 Final exam: 105 unseen test episodes (7 families x 15)
 
 | Metric | AI (DQN) | Baseline (PD) | Better |
 |--------|---------:|--------------:|--------|
-| Average following distance [m] | 34.08 | 35.35 | (info) |
-| Average safe distance d_safe [m] | 30.42 | 29.81 | (info) |
-| Gap error abs(gap - d_safe) [m] | 6.29 | 6.24 | Baseline, by 0.7% (practically a tie) |
-| Speed tracking RMSE [m/s] | 2.80 | 2.61 | Baseline, by 7% |
+| Average following distance [m] | 38.74 | 35.18 | (info) |
+| Average safe distance d_safe [m] | 29.63 | 29.84 | (info) |
+| Gap error abs(gap - d_safe) [m] | 10.14 | **6.14** | **Baseline**, clearly |
+| Speed tracking RMSE [m/s] | **2.60** | 2.61 | AI, by 0.5% (a tie) |
 | **Collision rate** | **0%** | **0%** | tie |
-| RMS acceleration [m/s^2] | **0.88** | 0.91 | **AI**, by 3% |
-| RMS jerk [m/s^3] | 1.50 | **0.72** | **Baseline**, clearly |
-| Minimum gap, worst episode [m] | 4.00 | 5.00 | Baseline |
-| Minimum gap, average episode [m] | 18.74 | 19.06 | Baseline, by 2% |
-| Average total reward per episode | 448.7 | 485.5 | Baseline |
+| RMS acceleration [m/s^2] | **0.85** | 0.88 | **AI**, by 3% |
+| RMS jerk [m/s^3] | 1.43 | **0.69** | **Baseline**, clearly |
+| Minimum gap, worst episode [m] | 4.85 | 5.00 | Baseline (a tie) |
+| Minimum gap, average episode [m] | **20.13** | 19.20 | AI, by 5% |
+| Average total reward per episode | 447.9 | 473.1 | Baseline |
 
-Per scenario family (AI / Baseline): the AI holds the safe distance more
-accurately than the baseline in the **hard brake** (5.75 / 7.63 m) and
-**random smooth** (5.45 / 7.48 m) families; the baseline is more accurate in
-the others. Both have zero collisions in every family, including `mixed`,
-which the AI never saw during training.
+Per scenario family (gap error AI / Baseline, metres): constant 8.6 / 3.3,
+cut-in 15.8 / 11.9, hard brake 15.5 / 7.4, mixed 7.5 / 5.9, random smooth
+13.5 / 7.2, slow then fast 5.5 / 4.0, stop and go 4.5 / 3.2. Both have
+zero collisions in every family, including `mixed`, which the AI never saw
+during training.
 
-### 7.3 Development set (30 exam-like drives, own seed)
+The AI follows on average 9 m further back than d_safe (38.7 m vs 29.6 m):
+it has become a cautious driver. That is why its gap error is larger and
+its average minimum gap is larger at the same time.
+
+### 7.3 Development set (35 drives: 30 exam-like plus 5 live-like, own seed)
 
 | | AI | Baseline |
 |---|---:|---:|
+| Mean marks | 446.1 | 446.5 |
 | Collisions | **0** | 1 |
-| Gap error [m] | **9.28** | 10.32 |
-| Speed RMSE [m/s] | **3.12** | 3.14 |
-| RMS acceleration | **0.91** | 0.97 |
-| RMS jerk | 1.55 | **0.71** |
-| Worst minimum gap [m] | **4.6** | -0.7 (crash) |
+| Gap error [m] | 15.65 | **11.95** |
+| Speed RMSE [m/s] | **3.00** | 3.21 |
+| RMS acceleration | **0.89** | 0.96 |
+| RMS jerk | 1.49 | **0.67** |
+| Worst minimum gap [m] | **5.2** | -0.1 (crash) |
 
-### 7.4 Honest interpretation
+### 7.4 Live-demo stress test: 60 "press STOP" drives, no emergency brake
 
-* **Safety goal met:** zero collisions in all 105 unseen tests, and zero on
-  the dev set, where even the tuned baseline crashed once (a stop-and-go
-  drive with a slow start).
-* **Competitive, not dominant:** on the exam, the AI is within about 1% of
-  the baseline on gap error and 2% on average minimum gap, 7% behind on
-  speed tracking, and slightly better on acceleration. On the dev set it
-  wins 5 of the 7 metrics.
+The lead car cruises at 12, 18, 22, 26 or 30 m/s, then at 8, 20 or 40 s
+brakes at 3 or 4 m/s^2 to 0 or 8 m/s, then speeds up again. The AEB safety
+net of the live demo is switched OFF, so only the controller counts.
+
+| | crashes (of 60) | closest gap |
+|---|---:|---:|
+| AI, run 6 (5 inputs, before the fixes) | 7 | crash |
+| **AI, run 9 (final)** | **0** | **4.7 m** |
+| Baseline, final gains | 8 | crash |
+
+All 8 baseline crashes are full stops from a lead speed of 26 or 30 m/s,
+faster than our 25 m/s cruise speed: the gap has grown large, the capped
+spacing error still says "fine", and by the time the closing speed is big
+the stop is no longer possible at 3 m/s^2. This is our own test, designed
+after we saw the live-demo crash, so it is reported separately from the
+exam.
+
+### 7.5 Honest interpretation
+
+* **Safety goal met, and clearly better than before:** zero collisions in
+  all 105 unseen tests, zero on the dev set (where the tuned baseline
+  crashed once), and zero in the 60 hard-stop drives where the baseline
+  crashed 8 times and the previous AI 7 times.
+* **The price is accuracy:** the final AI keeps a bigger gap than it
+  needs, so its gap error on the exam (10.1 m) is worse than the baseline's
+  (6.1 m) and worse than the previous AI's (6.3 m). In the live demo you see
+  this as the blue car hanging back a little further than the dotted safe
+  distance. Speed tracking and acceleration are a tie or slightly better.
 * **Clear loss: jerk.** The AI's RMS jerk is about twice the baseline's.
   Cause: discrete actions. The AI picks from 10 fixed accelerations and
   keeps making small corrections between neighbouring levels, while the PD
   controller outputs any value smoothly. A continuous-action method
   (DDPG/TD3) is the natural fix.
 * **The baseline is strong because we made it strong:** spacing-error
-  saturation plus a fair 4-parameter grid search with the same reward.
-  Without saturation, the plain PD law crashed in a hard-brake test.
+  saturation, lead-acceleration feed-forward and a fair 5-parameter grid
+  search with the same reward. Without saturation, the plain PD law crashed
+  in a hard-brake test.
 
-### 7.5 How the test set was used (transparency)
+### 7.6 How the test set was used (transparency)
 
-The exam was run three times in total: (1) after run 4, which revealed that
-the 12-drive validation set was too small (gap error 10.8 vs 6.2 m and one
-crash); (2) after run 6, the final model; (3) this re-run after restoring
-run 6, which gave identical numbers. After the first run we introduced the
-separate development set and made every later decision on it (fixing the
-sparse reward, choosing seed 1 over seed 2, rejecting run 7), so the
-reported model was not tuned on the test set.
+The exam was run four times in total: (1) after run 4, which revealed that
+the 12-drive validation set was too small; (2) after run 6; (3) a re-run
+after restoring run 6, which gave identical numbers; (4) after run 9, the
+final model. After the first run we introduced the separate development set
+and made every later decision on it (fixing the sparse reward, choosing
+seeds, rejecting run 7, choosing run 9 seed 1). Run 9 was chosen BEFORE the
+fourth exam, by the same rule as before (crash-free on the dev set, best
+mean dev marks), and it was kept even though the exam showed a worse gap
+error than run 6. Swapping back because of exam numbers would mean
+choosing the model on the test set.
 
-### 7.6 Tuning history (summary)
+### 7.7 Tuning history (summary)
 
 | Run | Change | Outcome |
 |-----|--------|---------|
@@ -188,8 +219,10 @@ reported model was not tuned on the test set.
 | 2-3 | jerk x4, finer actions, lr decay; "braking needed" penalty, baseline saturation | found and fixed a late-braking crash |
 | 4 | fixed reward loophole (tailgating a slightly faster car) | dev and exam showed poor generalisation |
 | 4b | refinement phase | worse; removed |
-| 5-6 | distance-blended reward (fixes sparse reward), 18 mock-test drives, two seeds | **final model**: 0 crashes on dev and exam |
+| 5-6 | distance-blended reward (fixes sparse reward), 18 mock-test drives, two seeds | 0 crashes on dev and exam, gap error a tie with the baseline |
 | 7 | absolute-value jerk penalty | worse jerk, rejected |
+| 8 | crash -300, safety penalties capped, speeding penalty, `live_like` family | still crashed in hard-stop drives (the AI could not see the lead braking) |
+| 9 | 6th input: lead acceleration; braking-needed counts the lead's stopping distance; baseline feed-forward, re-tuned | **final model**: 0 crashes everywhere, but a looser gap |
 
 
 ## 8. Limitations (be honest, examiners like this)
@@ -199,7 +232,10 @@ reported model was not tuned on the test set.
 * Discrete actions: the AI can only choose from 10 accelerations, which
   makes perfectly smooth control harder than for the continuous baseline.
 * Simulation only: no real vehicle data. A real car would need far more
-  testing, safety certification and a fallback (e.g. emergency braking).
+  testing and safety certification. The live demo has a simple emergency
+  brake (AEB) as a fallback, but the exam deliberately runs without it.
+* The final AI is cautious: it follows about 9 m further back than d_safe,
+  so the safety gain cost some gap accuracy.
 * A DQN gives no formal safety guarantee. Zero collisions on 105 test
   episodes is evidence, not proof.
 * Results depend on the reward design; a different weighting of comfort vs.
@@ -212,7 +248,11 @@ reported model was not tuned on the test set.
 
 * Continuous-action methods (DDPG, TD3, SAC) for smoother control.
 * Sensor noise, delay and partial observability; a recurrent network.
-* Safety layer ("shield") that overrides the agent if braking needed is too high.
+* Win back gap accuracy without losing safety: for example a stronger gap
+  reward, or training longer on the `live_like` family. Decide on the dev
+  set, not the exam.
+* A formal safety layer ("shield"), like the live demo's AEB, used and
+  evaluated in the exam too.
 * Multi-vehicle traffic and string stability (platooning).
 * Real driving-data lead profiles (e.g. from public highway datasets).
 * Hardware-in-the-loop or a small robot-car demo.
@@ -232,6 +272,9 @@ reported model was not tuned on the test set.
 * "During tuning I found and fixed a reward loophole: the agent tailgated a
   car that was slightly faster than the cruise speed, because I had written
   the reward badly. RL optimises exactly what you reward."
+* "Playing with the live demo found a crash the exam never tested. The AI
+  could not see that the car ahead was braking. One extra input, the lead
+  car's acceleration, took it from 7 crashes to 0 in 60 hard-stop drives."
 
 ## 11. Likely viva questions with simple answers
 
@@ -326,26 +369,51 @@ reported model was not tuned on the test set.
     optimise exactly what you reward.
 
 18. **Where does your AI lose to the baseline and why?**
-    Mainly jerk: about 1.5 vs 0.7 m/s^3. The AI chooses from 10 fixed
+    Jerk: about 1.4 vs 0.7 m/s^3. The AI chooses from 10 fixed
     accelerations and keeps switching between neighbouring levels, while
-    the PD controller outputs any value smoothly. Speed tracking is 7% worse;
-    gap error is essentially equal. Both had zero collisions.
+    the PD controller outputs any value smoothly. And gap error: 10.1 vs
+    6.1 m, because the final AI follows about 9 m further back than it
+    needs to. Speed tracking and acceleration are a tie or slightly
+    better. Both had zero collisions on the exam; in the hard-stop test the
+    AI had 0 crashes and the baseline 8.
 
-21. **Why not just report the results that look best?**
+19. **Why not just report the results that look best?**
     Because that would be dishonest. I chose the model on validation and
     dev data, and the exam result is what it is. Reporting where the AI
     loses (jerk) and why is part of a credible result.
 
-22. **What did you learn from the failed experiments?**
+20. **What did you learn from the failed experiments?**
     The refinement phase failed because an empty replay buffer with almost
     no exploration made the agent forget bad situations. The absolute-value
     jerk penalty failed because it made big lurches cheaper, while the
     metric (RMS) punishes them most. The penalty should have the same shape
     as the metric.
 
-19. **Could this go into a real car?**
+21. **Could this go into a real car?**
     Not directly. It needs real sensor noise, many more scenarios, formal
     safety checks and a safety fallback. It is a proof of concept.
 
-20. **What would you do next?**
-    Continuous actions, sensor noise, a safety shield, and multi-car traffic.
+22. **What would you do next?**
+    Win back gap accuracy without losing safety, continuous actions, sensor
+    noise, a safety shield, and multi-car traffic.
+
+23. **Why did you add the lead car's acceleration as an input?**
+    In the live demo, when the lead car braked hard from far away, the AI
+    reacted too late and crashed. With only one snapshot of speeds and gap,
+    a car that has just started braking looks almost like a cruising one,
+    so the state was missing information (it was not Markov). Real ACC
+    radars measure lead acceleration too. After adding it, hard-stop
+    crashes went from 7 to 0 out of 60.
+
+24. **Your demo has emergency braking. Isn't that cheating?**
+    No, because the exam does not use it. In the live demo a person can
+    brake the lead car at 4 m/s^2, harder than ACC may brake (3 m/s^2), so
+    in some situations no ACC can avoid a crash: that is physics. Real cars
+    have a separate AEB system for exactly this. The demo shows and counts
+    when it acts; the final AI did not need it in our STOP tests.
+
+25. **Your new model has a worse gap error than the old one. Why keep it?**
+    It was chosen on the development set before the exam, by the same rule
+    as before. Swapping back because of the exam numbers would be choosing
+    the model on the test set. And it fixes the crash that really matters:
+    0 instead of 7 crashes when the car ahead stops hard.

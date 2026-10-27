@@ -2,12 +2,12 @@ function a = baseline_acc(env, cfg, gains)
 % BASELINE_ACC  A conventional (non-AI) Adaptive Cruise Controller.
 %
 %   a = baseline_acc(env, cfg)          uses the tuned default gains
-%   a = baseline_acc(env, cfg, gains)   gains = [kp kd kv e_max]
+%   a = baseline_acc(env, cfg, gains)   gains = [kp kd kv e_max ka]
 %
 % This is the "rule book driver" used in real cars for years: the
 % CONSTANT TIME-GAP controller, a PD (proportional-derivative) law.
 %
-%   Follow mode :  a_follow = kp * e + kd * (lead speed - our speed)
+%   Follow mode :  a_follow = kp * e + kd * (lead speed - our speed) + ka * (lead accel)
 %                  where e = gap - d_safe, capped at e_max ("saturation")
 %                  "too close -> brake, closing in -> brake, pulling away -> go"
 %   Cruise mode :  a_cruise = kv * (set speed - our speed)
@@ -24,7 +24,7 @@ function a = baseline_acc(env, cfg, gains)
 % the TRAINING scenarios, scored with the SAME reward the AI is trained on.
 
 if nargin < 3 || isempty(gains)
-    gains = [0.45, 0.70, 1.25, 20, 0.6];  % [kp kd kv e_max ka] from tune_baseline.m
+    gains = [0.36, 0.56, 1.5625, 20, 0.30];  % [kp kd kv e_max ka] from tune_baseline.m (run 9)
 end
 kp = gains(1); kd = gains(2); kv = gains(3); e_max = gains(4);
 ka = 0;

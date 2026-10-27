@@ -473,7 +473,7 @@ pedal changes about 4 times cheaper (jerk 10: 0.8 before, 0.2 after), so the
 AI swapped many small wiggles for fewer big lurches. Our exam metric is RMS
 jerk, which squares every value and punishes big lurches heavily.
 Lesson: **give the penalty the same shape as the metric you care about.**
-We went back to the run-6 model, which is the final one.
+We went back to the run-6 model (until run 9 replaced it, see below).
 
 **Run 8: the live demo found three new problems.** Driving the grey car by
 hand in the live demo, pressing STOP made the AI crash into it. A drive like
@@ -532,6 +532,15 @@ cars handle this with a second system, AEB (automatic emergency braking),
 that only acts when a crash is close. The demo has one too, and counts how
 often each driver needed it. A good ACC driver needs it rarely. The exam
 does not use AEB at all.
+
+**The result, honestly.** In the 60 hard-stop drives with no emergency
+brake, the run-9 AI crashed 0 times (the old AI 7, the classic controller
+8). On the 105-drive exam it still had 0 crashes. But it became a
+cautious driver: it follows about 9 m further back than the safe distance,
+so its gap error grew from 6.3 m to 10.1 m (the classic controller: 6.1 m).
+We chose this model on the development set BEFORE the exam and kept it, as
+the rules say. Safety was the problem we set out to fix; winning back the
+gap accuracy is the next job.
 
 Lesson: **test your AI in situations you did not design.** The exam
 measures what you thought of; playing with it finds what you did not.
