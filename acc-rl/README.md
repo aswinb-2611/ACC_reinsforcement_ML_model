@@ -28,14 +28,20 @@ library, no Deep Learning Toolbox, no Reinforcement Learning Toolbox.
    ```
    This checks the maths, skips training (the trained model
    `trained_agent.mat` is already included), runs the exam on 105 unseen test
-   drives, saves all results to `results/`, and opens the animated demo.
-5. To watch other situations:
+   drives, saves all results to `results/`, and opens the 3D demo.
+5. To use the demo yourself:
    ```matlab
-   demo('cut_in')
-   demo('stop_and_go')
+   demo()                      % LIVE: you drive the grey lead car
+   demo('cut_in')              % REPLAY: an unseen exam drive, played back
    demo('mixed', 2)            % the 2nd unseen "mixed" test drive
-   demo('hard_brake', 1, true) % also saves an animated GIF in results/
+   demo('hard_brake', 1, true) % also saves an animated GIF in results/ (large file)
    ```
+   In LIVE mode, the slider and the `-1 m/s` / `+1 m/s` buttons set the
+   grey lead car's speed. The blue car is the AI, and the red see-through
+   car is the classic controller. Watch how each one reacts. The Camera
+   button switches between the chase view (behind our car) and an
+   isometric overview. Pause and Restart do what they say. The window stays
+   open until you close it.
 6. To retrain from scratch yourself (about 25 minutes in Octave, usually
    faster in MATLAB):
    ```matlab
@@ -68,9 +74,8 @@ The AI never crashes and is close to a carefully tuned conventional
 controller on gap and speed. It is slightly gentler on acceleration, but
 clearly less smooth (jerk), because it picks from 10 fixed accelerations
 instead of a continuous value. Full discussion: `REPORT_NOTES.md`,
-section 7. Animations: `results/demo_hard_brake.gif`,
-`results/demo_cut_in.gif`, `results/demo_mixed.gif` (played about 2.5x
-faster than real time).
+section 7. The 3D demo (`demo()`) is the best way to see the behaviour, and
+it runs live on screen.
 
 ---
 
@@ -113,7 +118,12 @@ faster than real time).
 | `compute_metrics.m` | Turns a recording into report-card numbers. |
 | `evaluate.m` | Final exam: both controllers on the same 105 unseen tests, prints and saves the table and plots. |
 | `dev_check.m` | Tuning tool: compares AI and baseline on a separate 30-drive development set (exam-like, different seed), so the exam stays untouched. |
-| `demo.m` | Animated top-down view, AI and baseline side by side, with live graphs. |
+| `demo.m` | The 3D window: you drive the lead car (live), or replay an exam drive. Controls and graphs live here. |
+| `demo_world.m` | Builds and draws the 3D road: grass, road, lane lines, trees, lamp posts, the three cars and the cameras. |
+| `demo_sim.m` | Live driving engine: moves the lead car from your slider and steps both drivers. |
+| `demo_hist.m` | Keeps the record of every moment, for the picture and the graphs. |
+| `demo_graphs.m` | The three small graphs (speed, gap, acceleration). |
+| `car_mesh.m`, `mesh_box.m`, `mesh_wheel.m`, `mesh_add.m` | Build the 3D car (body, cabin, wheels, lights) from simple boxes and cylinders. |
 | `run_all.m` | One command: gradient check, train if needed, evaluate, demo. |
 | `can_show_figures.m`, `set_seed.m` | Small helpers (is there a screen? fix the random seed). |
 
@@ -127,7 +137,7 @@ faster than real time).
 | `results/comparison_bar_chart.png` | All metrics side by side. |
 | `results/metrics_table.csv` | The final results table. |
 | `results/metrics_by_scenario.csv` | Results split by scenario family. |
-| `results/demo_*.gif` | Animated demos (re-compressed after saving to keep them small). |
+| `results/demo_*.gif` | Only created if you ask for one, with `demo('hard_brake', 1, true)`. These files are large (about 18 MB). |
 
 ### Documents
 | file | what it is |
@@ -167,4 +177,4 @@ faster than real time).
   Octave has its own `demo` command; ours is used because it is in the
   current folder.
 * **No animation window** (for example when using `matlab -batch`): use
-  `demo('hard_brake', 1, true)` to save a GIF to `results/` instead.
+  `demo('hard_brake', 1, true)` to save a GIF to `results/` instead (large file).

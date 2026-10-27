@@ -28,4 +28,8 @@ fprintf('=== Step 3: evaluation on unseen scenarios ===\n');
 evaluate();
 
 fprintf('=== Step 4: demo ===\n');
-demo('hard_brake');
+if can_show_figures()
+    demo();                              % live 3D window: you drive the lead car
+else
+    demo('hard_brake', 1, true);         % no screen: save an animated GIF instead
+end
