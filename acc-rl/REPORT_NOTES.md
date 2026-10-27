@@ -61,7 +61,7 @@ gap = 150 and relative speed = 0.
 * Penalties: closer than d_safe (2 * relative shortfall squared), closer than
   0.5 d_safe (up to 3), time-to-collision under 4 s (up to 1), braking needed
   (closing speed^2 / (2 gap)) above 1.5 m/s^2 (up to 3), acceleration
-  0.05 (a/3)^2, jerk 0.10 |jerk|/5 (absolute value, see tuning notes).
+  0.05 (a/3)^2, jerk 0.20 (jerk/5)^2.
 * Collision: -100 and the episode terminates.
 * Running out of time is NOT treated as a terminal state (bootstrapping
   continues), only a collision is.
@@ -101,7 +101,86 @@ the same reward as the AI, rejecting any setting that crashed.
 
 ## 7. Results
 
-RESULTS_PLACEHOLDER
+### 7.1 Training
+
+* 800 episodes, about 18 minutes in Octave on one CPU core.
+* Reward curve (`results/training_reward_curve.png`): starts around -100 to
+  -200 per episode (random pedals, frequent crashes), rises steadily, and
+  plateaus around 400 to 440 once exploration falls to 5% (episode 480).
+* Saved model: episode 770, mock-test score 435.1 on 18 validation drives,
+  with zero crashes.
+
+### 7.2 Final exam: 105 unseen test episodes (7 families x 15)
+
+| Metric | AI (DQN) | Baseline (PD) | Better |
+|--------|---------:|--------------:|--------|
+| Average following distance [m] | 34.08 | 35.35 | (info) |
+| Average safe distance d_safe [m] | 30.42 | 29.81 | (info) |
+| Gap error abs(gap - d_safe) [m] | 6.29 | 6.24 | Baseline, by 0.7% (practically a tie) |
+| Speed tracking RMSE [m/s] | 2.80 | 2.61 | Baseline, by 7% |
+| **Collision rate** | **0%** | **0%** | tie |
+| RMS acceleration [m/s^2] | **0.88** | 0.91 | **AI**, by 3% |
+| RMS jerk [m/s^3] | 1.50 | **0.72** | **Baseline**, clearly |
+| Minimum gap, worst episode [m] | 4.00 | 5.00 | Baseline |
+| Minimum gap, average episode [m] | 18.74 | 19.06 | Baseline, by 2% |
+| Average total reward per episode | 448.7 | 485.5 | Baseline |
+
+Per scenario family (AI / Baseline): the AI holds the safe distance more
+accurately than the baseline in the **hard brake** (5.75 / 7.63 m) and
+**random smooth** (5.45 / 7.48 m) families; the baseline is more accurate in
+the others. Both have zero collisions in every family, including `mixed`,
+which the AI never saw during training.
+
+### 7.3 Development set (30 exam-like drives, own seed)
+
+| | AI | Baseline |
+|---|---:|---:|
+| Collisions | **0** | 1 |
+| Gap error [m] | **9.28** | 10.32 |
+| Speed RMSE [m/s] | **3.12** | 3.14 |
+| RMS acceleration | **0.91** | 0.97 |
+| RMS jerk | 1.55 | **0.71** |
+| Worst minimum gap [m] | **4.6** | -0.7 (crash) |
+
+### 7.4 Honest interpretation
+
+* **Safety goal met:** zero collisions in all 105 unseen tests, and zero on
+  the dev set, where even the tuned baseline crashed once (a stop-and-go
+  drive with a slow start).
+* **Competitive, not dominant:** on the exam, the AI is within about 1% of
+  the baseline on gap error and 2% on average minimum gap, 7% behind on
+  speed tracking, and slightly better on acceleration. On the dev set it
+  wins 5 of the 7 metrics.
+* **Clear loss: jerk.** The AI's RMS jerk is about twice the baseline's.
+  Cause: discrete actions. The AI picks from 10 fixed accelerations and
+  keeps making small corrections between neighbouring levels, while the PD
+  controller outputs any value smoothly. A continuous-action method
+  (DDPG/TD3) is the natural fix.
+* **The baseline is strong because we made it strong:** spacing-error
+  saturation plus a fair 4-parameter grid search with the same reward.
+  Without saturation, the plain PD law crashed in a hard-brake test.
+
+### 7.5 How the test set was used (transparency)
+
+The exam was run three times in total: (1) after run 4, which revealed that
+the 12-drive validation set was too small (gap error 10.8 vs 6.2 m and one
+crash); (2) after run 6, the final model; (3) this re-run after restoring
+run 6, which gave identical numbers. After the first run we introduced the
+separate development set and made every later decision on it (fixing the
+sparse reward, choosing seed 1 over seed 2, rejecting run 7), so the
+reported model was not tuned on the test set.
+
+### 7.6 Tuning history (summary)
+
+| Run | Change | Outcome |
+|-----|--------|---------|
+| 1 | first working DQN | no mock-test crashes, but jerky (jerk penalty 11.5 vs 0.3) |
+| 2-3 | jerk x4, finer actions, lr decay; "braking needed" penalty, baseline saturation | found and fixed a late-braking crash |
+| 4 | fixed reward loophole (tailgating a slightly faster car) | dev and exam showed poor generalisation |
+| 4b | refinement phase | worse; removed |
+| 5-6 | distance-blended reward (fixes sparse reward), 18 mock-test drives, two seeds | **final model**: 0 crashes on dev and exam |
+| 7 | absolute-value jerk penalty | worse jerk, rejected |
+
 
 ## 8. Limitations (be honest, examiners like this)
 
@@ -237,9 +316,22 @@ RESULTS_PLACEHOLDER
     optimise exactly what you reward.
 
 18. **Where does your AI lose to the baseline and why?**
-    (Use the Results section.) The honest explanation for any comfort gap
-    is discrete actions: the AI switches between fixed levels, while the PD
-    controller outputs any value smoothly.
+    Mainly jerk: about 1.5 vs 0.7 m/s^3. The AI chooses from 10 fixed
+    accelerations and keeps switching between neighbouring levels, while
+    the PD controller outputs any value smoothly. Speed tracking is 7% worse;
+    gap error is essentially equal. Both had zero collisions.
+
+21. **Why not just report the results that look best?**
+    Because that would be dishonest. I chose the model on validation and
+    dev data, and the exam result is what it is. Reporting where the AI
+    loses (jerk) and why is part of a credible result.
+
+22. **What did you learn from the failed experiments?**
+    The refinement phase failed because an empty replay buffer with almost
+    no exploration made the agent forget bad situations. The absolute-value
+    jerk penalty failed because it made big lurches cheaper, while the
+    metric (RMS) punishes them most. The penalty should have the same shape
+    as the metric.
 
 19. **Could this go into a real car?**
     Not directly. It needs real sensor noise, many more scenarios, formal

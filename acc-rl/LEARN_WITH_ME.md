@@ -145,7 +145,7 @@ File: `acc_reward.m`.
 | gap smaller than half of d_safe (danger) | minus up to 3 more |
 | time to collision under 4 s | minus up to 1 |
 | "braking needed" above 1.5 m/s^2 | minus up to 3 |
-| strong acceleration, jerky pedal changes | small minus (comfort); jerk is charged by its absolute size |
+| strong acceleration, jerky pedal changes | small minus (comfort) |
 | crash | **-100** and the episode ends |
 
 "Following" means: a car is within radar range AND it is either slower than
@@ -451,10 +451,14 @@ set, while seed 1 crashed 0 times. Picking between runs is exactly what the
 dev set is for, so seed 1 won. On the exam it had zero crashes and nearly
 the same gap error as the baseline (6.29 m vs 6.24 m), but twice the jerk.
 
-**Squared vs absolute penalty.** The jerk penalty was squared:
-0.2 * (jerk/5)^2. A tiny pedal wiggle with jerk 0.8 cost only
-0.2 * (0.8/5)^2 = 0.005 marks, practically free, so the AI never bothered to
-stop wiggling. An absolute-value penalty, 0.1 * |jerk|/5, charges 0.016 for
-the same wiggle (three times more) but less than the square for rare big
-emergency changes. Rule of thumb: squared penalties ignore small things,
-absolute penalties push small things to exactly zero.
+**Run 7: a good idea that failed (and why).** The jerk penalty is squared:
+0.2 * (jerk/5)^2. A tiny pedal wiggle with jerk 0.8 costs only
+0.2 * (0.8/5)^2 = 0.005 marks, practically free. So we tried an
+absolute-value penalty, 0.1 * |jerk|/5, which charges 0.016 for the same
+wiggle (three times more). Result on the dev set: jerk got WORSE (2.1 vs
+1.55) and one run crashed once. Why? The absolute penalty also made BIG
+pedal changes about 4 times cheaper (jerk 10: 0.8 before, 0.2 after), so the
+AI swapped many small wiggles for fewer big lurches. Our exam metric is RMS
+jerk, which squares every value and punishes big lurches heavily.
+Lesson: **give the penalty the same shape as the metric you care about.**
+We went back to the run-6 model, which is the final one.

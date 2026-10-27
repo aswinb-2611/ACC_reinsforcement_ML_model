@@ -53,6 +53,27 @@ tested with: `octave --eval "run_all"`.
 
 ---
 
+## Results at a glance (105 unseen test drives)
+
+| Metric | AI (DQN) | Baseline (PD) |
+|--------|---------:|--------------:|
+| Collisions | **0** | **0** |
+| Gap error [m] | 6.29 | 6.24 |
+| Speed RMSE [m/s] | 2.80 | 2.61 |
+| RMS acceleration [m/s^2] | **0.88** | 0.91 |
+| RMS jerk [m/s^3] | 1.50 | **0.72** |
+| Worst minimum gap [m] | 4.00 | 5.00 |
+
+The AI never crashes and is close to a carefully tuned conventional
+controller on gap and speed. It is slightly gentler on acceleration, but
+clearly less smooth (jerk), because it picks from 10 fixed accelerations
+instead of a continuous value. Full discussion: `REPORT_NOTES.md`,
+section 7. Animations: `results/demo_hard_brake.gif`,
+`results/demo_cut_in.gif`, `results/demo_mixed.gif` (played about 2.5x
+faster than real time).
+
+---
+
 ## What each file does (plain words)
 
 ### The world (environment)
@@ -106,7 +127,7 @@ tested with: `octave --eval "run_all"`.
 | `results/comparison_bar_chart.png` | All metrics side by side. |
 | `results/metrics_table.csv` | The final results table. |
 | `results/metrics_by_scenario.csv` | Results split by scenario family. |
-| `results/demo_*.gif` | Animated demos. |
+| `results/demo_*.gif` | Animated demos (re-compressed after saving to keep them small). |
 
 ### Documents
 | file | what it is |

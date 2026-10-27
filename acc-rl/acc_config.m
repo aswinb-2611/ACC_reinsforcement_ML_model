@@ -48,7 +48,7 @@ cfg.rw.k_ttc          = 1.0;  % penalty weight for risky time-to-collision
 cfg.rw.brake_limit    = 1.5;  % braking NEEDED to avoid a crash above this [m/s^2] is risky
 cfg.rw.k_brake        = 1.0;  % penalty weight for "you will soon need hard braking"
 cfg.rw.k_acc          = 0.05; % comfort: penalty for strong acceleration
-cfg.rw.k_jerk         = 0.10; % comfort: penalty per unit of |jerk| (sudden pedal changes)
+cfg.rw.k_jerk         = 0.20; % comfort: penalty for jerk (sudden pedal changes)
 cfg.rw.collision      = -100; % very large penalty for a crash
 
 % ---------------- Reproducibility ----------------

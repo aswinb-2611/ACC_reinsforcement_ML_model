@@ -75,11 +75,11 @@ end
 
 % --- comfort penalties (passengers hate harsh pedals)
 p.acc  = rw.k_acc  * (env.ae / 3)^2;
-% Jerk uses the ABSOLUTE value, not the square. A squared penalty makes tiny
-% pedal wiggles almost free (0.2*(0.8/5)^2 = 0.005), so the AI kept
-% flickering. The absolute value charges every wiggle (0.1*0.8/5 = 0.016)
-% while charging less than the square for rare big emergency changes.
-p.jerk = rw.k_jerk * abs(jerk) / 5;
+% Jerk is SQUARED, like the RMS-jerk metric we report. (We also tried the
+% absolute value |jerk|: it made big lurches cheaper, so the AI swapped
+% small wiggles for fewer big ones and RMS jerk got worse. Lesson: give
+% the penalty the same shape as the metric you care about.)
+p.jerk = rw.k_jerk * (jerk / 5)^2;
 
 r = p.task - p.close - p.danger - p.ttc - p.brake - p.acc - p.jerk;
 

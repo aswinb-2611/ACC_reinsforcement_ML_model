@@ -1,0 +1,11 @@
+Metric,AI_DQN,Baseline_PD,Better
+"Average following distance [m]",34.0750,35.3498,(info)
+"Average safe distance d_safe [m]",30.4214,29.8058,(info)
+"Gap error |gap - d_safe| [m]",6.2883,6.2425,Baseline
+"Speed tracking error RMSE [m/s]",2.7974,2.6114,Baseline
+"Collision rate [%]",0.0000,0.0000,tie
+"RMS acceleration [m/s^2]",0.8828,0.9082,AI
+"RMS jerk [m/s^3]",1.4976,0.7227,Baseline
+"Minimum gap, worst episode [m]",3.9980,5.0021,Baseline
+"Minimum gap, average episode [m]",18.7389,19.0635,Baseline
+"Average total reward per episode",448.7398,485.5132,Baseline
