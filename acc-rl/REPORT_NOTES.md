@@ -45,9 +45,11 @@ All scenarios are physically survivable with the ego's braking limit.
 
 ## 4. RL formulation
 
-**State (5, normalised):** v/25 - 1, (v_lead - v)/10, gap/150,
-(gap - d_safe)/50, a_actual/3. When no car is within radar range,
-gap = 150 and relative speed = 0.
+**State (6, normalised):** v/25 - 1, (v_lead - v)/10, gap/150,
+(gap - d_safe)/50, a_actual/3, a_lead/3. When no car is within radar range,
+gap = 150 and relative speed and lead acceleration = 0. (The lead
+acceleration was added in run 9: without it, a hard-braking car far ahead
+was indistinguishable from a cruising one, so the state was not Markov.)
 
 **Actions (10):** {-3, -2, -1, -0.5, -0.25, 0, +0.25, +0.5, +1, +2} m/s^2.
 
@@ -60,9 +62,14 @@ gap = 150 and relative speed = 0.
 * Free road: speed score = max(0, 1 - |v - 25| / 15).
 * Penalties: closer than d_safe (2 * relative shortfall squared), closer than
   0.5 d_safe (up to 3), time-to-collision under 4 s (up to 1), braking needed
-  (closing speed^2 / (2 gap)) above 1.5 m/s^2 (up to 3), acceleration
-  0.05 (a/3)^2, jerk 0.20 (jerk/5)^2.
-* Collision: -100 and the episode terminates.
+  above 1.5 m/s^2 (up to 3), acceleration 0.05 (a/3)^2, jerk 0.20 (jerk/5)^2,
+  speed above the set speed 0.15 per m/s.
+  Braking needed = max(closing speed^2 / (2 gap), v^2 / (2 (gap + d_lead - 2)))
+  where d_lead = v_lead^2 / (2 b) is the lead car's stopping distance when it
+  is braking at b > 0.5 m/s^2 (second term added in run 9).
+* The four safety penalties together are capped at 2.5 per step, so a long
+  close call can never cost more than a crash (run 8, the "give up" trap).
+* Collision: -300 and the episode terminates.
 * Running out of time is NOT treated as a terminal state (bootstrapping
   continues), only a collision is.
 
@@ -70,7 +77,7 @@ gap = 150 and relative speed = 0.
 
 | item | value |
 |------|-------|
-| network | MLP 5 - 64 - 64 - 10, ReLU, linear output, 5,194 weights |
+| network | MLP 6 - 64 - 64 - 10, ReLU, linear output, 5,258 weights |
 | initialisation | He (sqrt(2/fan_in)), small output layer |
 | loss | Huber (delta 5) on the TD error |
 | optimiser | Adam (beta1 0.9, beta2 0.999), lr 5e-4 decaying linearly to 1e-4 |
@@ -80,8 +87,8 @@ gap = 150 and relative speed = 0.
 | target | y = r + 0.99 (1 - done) Q_target(s', argmax_a Q_online(s', a)) |
 | exploration | epsilon-greedy, 1.0 to 0.05 linearly over 60% of training |
 | training | 800 episodes, fixed seed; best crash-free mock-test model kept |
-| model selection | every 10 episodes, 18 fixed validation drives (not the test set) |
-| data sets | training (random, new every episode), validation (18), development (30, exam-like, own seed), test (105) |
+| model selection | every 10 episodes, 21 fixed validation drives (not the test set) |
+| data sets | training (random, new every episode), validation (21), development (35, exam-like plus live-like, own seed), test (105) |
 
 **Gradient check:** central finite differences on a small network give a
 relative error of about 1e-11 for every parameter, proving the
@@ -92,12 +99,15 @@ backpropagation is correct.
 Constant time-gap PD with spacing-error saturation and cruise mode:
 
     e        = min(gap - d_safe, e_max)
-    a_follow = kp * e + kd * (v_lead - v)
+    a_follow = kp * e + kd * (v_lead - v) + ka * a_lead
     a_cruise = kv * (v_set - v)
     a        = clip(min(a_cruise, a_follow), -3, +2)
 
-Gains tuned by a two-stage grid search on 18 training-style scenarios with
-the same reward as the AI, rejecting any setting that crashed.
+Gains tuned by a two-stage grid search on 21 training-style scenarios with
+the same reward as the AI, rejecting any setting that crashed. The
+feed-forward gain ka (run 9) gives it the same lead-acceleration
+information the AI gets, so the comparison stays fair; ka = 0 is in the
+grid, so the search could have rejected it.
 
 ## 7. Results
 
@@ -248,10 +258,10 @@ reported model was not tuned on the test set.
    keep acting well. The agent picks the action with the highest Q-value.
 
 5. **What are your state, action and reward?**
-   State: speed, relative speed, gap, gap error and current acceleration,
-   all normalised. Action: one of 10 accelerations from -3 to +2 m/s^2.
+   State: speed, relative speed, gap, gap error, current acceleration and
+   the lead car's acceleration, all normalised. Action: one of 10 accelerations from -3 to +2 m/s^2.
    Reward: points for a gap near d_safe or speed near 25 m/s, penalties for
-   being too close, risky closing, harsh or jerky pedals, and -100 for a crash.
+   being too close, risky closing, harsh or jerky pedals, speeding, and -300 for a crash.
 
 6. **Why a replay buffer?**
    Consecutive steps are almost identical, which makes learning unstable.

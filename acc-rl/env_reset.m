@@ -20,6 +20,7 @@ env.ae  = 0;           % our ACTUAL acceleration right now [m/s^2]
 
 env.xl  = sc.gap0;     % lead car position [m] (so the gap = gap0)
 env.vl  = sc.vl0;      % lead car speed [m/s]
+env.al  = 0;           % lead car acceleration [m/s^2] (radar estimate)
 
 env.gap = env.xl - env.xe;
 env.done = false;

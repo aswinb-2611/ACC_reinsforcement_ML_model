@@ -40,6 +40,13 @@ vl_old = env.vl;
 vl_new = min(max(vl_old + sc.al(k) * dt, 0), cfg.vl_max);
 env.xl = env.xl + 0.5 * (vl_old + vl_new) * dt;
 env.vl = vl_new;
+% the lead car's real acceleration this step. A real ACC radar measures
+% this too (from how fast the relative speed changes). Right after a
+% cut-in the radar has only just found the new car, so it reads 0.
+env.al = (vl_new - vl_old) / dt;
+if sc.cut_k > 0 && k == sc.cut_k
+    env.al = 0;
+end
 
 % ---------------- 3. Gap and checks ----------------
 env.gap = env.xl - env.xe;

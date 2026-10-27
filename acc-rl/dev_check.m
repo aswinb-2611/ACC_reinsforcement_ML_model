@@ -4,7 +4,7 @@ function [ai_mean, bl_mean] = dev_check(model_file)
 %   dev_check()                       % uses trained_agent.mat
 %   dev_check('some_other_agent.mat') % compare another saved brain
 %
-% The development ("dev") set is 30 drives (5 of each training family)
+% The development ("dev") set is 35 drives (5 of each training family)
 % built with the SAME number ranges as the final exam but a DIFFERENT seed
 % (31337). We used it while tuning to diagnose problems and to compare
 % training runs, so the real exam (test_scenarios.mat) stays untouched.
@@ -27,6 +27,11 @@ for i = 1:5
     for j = 1:numel(types)
         scs{end + 1} = lead_profile(types{j}, 'test', cfg); %#ok<AGROW>
     end
+end
+% plus 5 drives like the ones you make in the live demo (a person moving the
+% speed slider). They come after the first 30, so those stay exactly as before.
+for i = 1:5
+    scs{end + 1} = lead_profile('live_like', 'test', cfg); %#ok<AGROW>
 end
 
 fprintf('\n #  scenario        |  marks AI/BL   | gap err AI/BL | min gap AI/BL | jerk AI/BL | crash\n');

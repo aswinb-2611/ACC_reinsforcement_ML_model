@@ -26,6 +26,9 @@ for i = 1:3
     hold(gx(i), 'on');
     grid(gx(i), 'on');
     box(gx(i), 'on');
+    % fixed light colours, so the graphs look the same in MATLAB's dark theme
+    set(gx(i), 'Color', [1 1 1], 'XColor', [0.2 0.2 0.2], 'YColor', [0.2 0.2 0.2], ...
+               'GridColor', [0.6 0.6 0.6]);
 end
 
 % ---- speed: ours (blue), classic (red dashed), lead car (black dotted)
@@ -35,7 +38,7 @@ G.v_l = plot(gx(1), NaN, NaN, 'k:',  'LineWidth', 1.5);
 plot(gx(1), [0 1e4], [cfg.v_set cfg.v_set], 'Color', [0.6 0.6 0.6]);   % cruise speed
 ylim(gx(1), [0 35]);
 title(gx(1), 'speed [m/s]');
-legend(gx(1), {'AI', 'classic ACC', 'lead car'}, 'Location', 'southeast');
+G.lg(1) = legend(gx(1), {'AI', 'classic ACC', 'lead car (you)'}, 'Location', 'southeast');
 
 % ---- gap: ours, classic, and our safe distance (dotted blue)
 G.g_a = plot(gx(2), NaN, NaN, 'b-',  'LineWidth', 1.8);
@@ -43,17 +46,23 @@ G.g_b = plot(gx(2), NaN, NaN, 'r--', 'LineWidth', 1.5);
 G.g_s = plot(gx(2), NaN, NaN, 'b:',  'LineWidth', 1.3);
 ylim(gx(2), [0 160]);
 title(gx(2), 'gap [m]   (dotted = safe distance)');
-legend(gx(2), {'AI gap', 'classic gap', 'safe distance'}, 'Location', 'northeast');
+G.lg(2) = legend(gx(2), {'AI gap', 'classic gap', 'safe distance'}, 'Location', 'northeast');
 
 % ---- acceleration: the pedal action of each driver
 G.a_a = plot(gx(3), NaN, NaN, 'b-',  'LineWidth', 1.4);
 G.a_b = plot(gx(3), NaN, NaN, 'r--', 'LineWidth', 1.4);
-ylim(gx(3), [-4 3]);
+ylim(gx(3), [-7.5 3]);           % down to -7: emergency braking
 title(gx(3), 'acceleration [m/s^2]');
-legend(gx(3), {'AI', 'classic ACC'}, 'Location', 'southwest');
+G.lg(3) = legend(gx(3), {'AI', 'classic ACC'}, 'Location', 'southwest');
 
 for i = 1:3
     xlabel(gx(i), 'time [s]');
+    set(get(gx(i), 'Title'), 'Color', [0.1 0.1 0.1]);
+    set(get(gx(i), 'XLabel'), 'Color', [0.2 0.2 0.2]);
+    try
+        set(G.lg(i), 'Color', [1 1 1], 'TextColor', [0.1 0.1 0.1]);
+    catch
+    end
 end
 end
 

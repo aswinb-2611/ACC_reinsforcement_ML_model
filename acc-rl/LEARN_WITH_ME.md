@@ -100,7 +100,7 @@ same lag, so the comparison stays fair.
 
 ## 6. State
 
-The **state** is what the agent sees at one moment. Ours has 5 numbers:
+The **state** is what the agent sees at one moment. Ours has 6 numbers:
 
 | # | meaning | example raw value | normalised (what the network sees) |
 |---|---------|-------------------|-------------------------------------|
@@ -109,6 +109,7 @@ The **state** is what the agent sees at one moment. Ours has 5 numbers:
 | 3 | gap | 30 m | 30/150 = 0.20 |
 | 4 | gap error (gap - d_safe) | 30 - 35 = -5 m | -5/50 = -0.10 |
 | 5 | our current acceleration | -1 m/s^2 | -1/3 = -0.33 |
+| 6 | the lead car's acceleration | -3 m/s^2 (it is braking) | -3/3 = -1.00 |
 
 **Normalising** means dividing by a typical size so all numbers are roughly
 between -1 and 1. A neural network learns badly if one input is 150 and
@@ -116,6 +117,11 @@ another is 0.3, the big one drowns out the small one.
 
 Why number 5? We punish jerky driving (see reward). Jerk depends on what the
 pedal is doing now, so the agent must be able to see it.
+
+Why number 6? It is the AI's version of seeing brake lights. A car far
+ahead that has just started braking hard looks, in the other 5 numbers,
+almost like a car cruising along. Without number 6 the AI noticed too late
+(see section 23, run 9).
 
 ## 7. Action
 
@@ -146,7 +152,11 @@ File: `acc_reward.m`.
 | time to collision under 4 s | minus up to 1 |
 | "braking needed" above 1.5 m/s^2 | minus up to 3 |
 | strong acceleration, jerky pedal changes | small minus (comfort) |
-| crash | **-100** and the episode ends |
+| driving faster than the set speed | minus 0.15 per m/s too fast |
+| crash | **-300** and the episode ends |
+
+The four safety minuses together are capped at 2.5 per step, so that a
+long close call never costs more than a crash (see section 23, run 8).
 
 "Following" means: a car is within radar range AND it is either slower than
 our cruise speed, or closer than d_safe. Otherwise it is "free road".
@@ -154,7 +164,9 @@ our cruise speed, or closer than d_safe. Otherwise it is "free road".
 **Braking needed** comes from school physics, v^2 = 2*a*s. If we are closing
 in on the lead at 18 m/s with 73 m left, the braking needed to stop closing
 in is 18^2 / (2 * 73) = 2.2 m/s^2, close to our 3 m/s^2 limit. This warns
-early, while the gap still looks big.
+early, while the gap still looks big. If the lead car itself is braking,
+we also count the distance it still rolls before it stops (section 23,
+run 9), so the warning comes even earlier.
 
 Small example: following at 20 m/s, d_safe = 35 m, gap = 35 m, speed matches
 the lead. Gap score = 1.0, so reward is about 0.7 * 1.0 + 0.3 * (speed score)
@@ -168,7 +180,7 @@ cruise and catch up. So between d_safe and 2 x d_safe the marks slide from
 is halfway, so the marks are half "gap" and half "speed".
 
 A full perfect episode (600 steps) would score about 600. A crash early on
-gives about -100 and ends the practice drive.
+gives about -300 and ends the practice drive.
 
 ## 9. Episode
 
@@ -219,7 +231,7 @@ of adjustable knobs (weights) that takes the 5 state numbers and outputs the
 8 Q-values.
 
 ```
- 5 inputs --> [64 neurons] --> [64 neurons] --> 10 outputs (Q-values)
+ 6 inputs --> [64 neurons] --> [64 neurons] --> 10 outputs (Q-values)
 ```
 
 Each neuron: multiply each input by a weight, add them up, add a bias, then
@@ -229,7 +241,7 @@ Tiny example with 2 inputs: inputs (0.5, -1), weights (2, 1), bias 0.3
 -> 0.5*2 + (-1)*1 + 0.3 = 0.3 -> ReLU(0.3) = 0.3. If the sum were -0.4,
 ReLU gives 0.
 
-Our network has 5*64 + 64 + 64*64 + 64 + 64*10 + 10 = **5,194 weights**, all
+Our network has 6*64 + 64 + 64*64 + 64 + 64*10 + 10 = **5,258 weights**, all
 learned by us. Files: `nn_init.m`, `nn_forward.m`.
 
 ## 13. Backpropagation
@@ -306,7 +318,7 @@ recipes that worked. File: `agent_act.m`.
 ## 18. Training vs. testing
 
 * **Training**: practice drives with random situations, exploring and learning.
-* **Validation (mock test)**: every 10 episodes, 18 fixed drives with no
+* **Validation (mock test)**: every 10 episodes, 21 fixed drives with no
   random pedals. We keep the brain that scored best here.
 * **Development set**: 30 extra drives with the same kind of situations as
   the exam but a different seed. Used by us (not by training) to diagnose
@@ -462,3 +474,64 @@ AI swapped many small wiggles for fewer big lurches. Our exam metric is RMS
 jerk, which squares every value and punishes big lurches heavily.
 Lesson: **give the penalty the same shape as the metric you care about.**
 We went back to the run-6 model, which is the final one.
+
+**Run 8: the live demo found three new problems.** Driving the grey car by
+hand in the live demo, pressing STOP made the AI crash into it. A drive like
+that was never in the exam, which is exactly why playing with the live demo
+is useful. We found three separate causes:
+
+1. *The "give up" trap.* Near a crash, the small safety penalties (too
+   close, short time-to-collision, braking needed) added up, step after
+   step, to MORE than the one-off crash penalty of -100. So for the AI,
+   crashing quickly looked cheaper than suffering a long close call. It
+   had learned that giving up pays. *Fix:* the crash now costs -300, and
+   the safety penalties together are capped at 2.5 per step. Now a crash
+   is always the worst thing that can happen.
+2. *Driving above the set speed.* Nothing in the marks said "never go
+   faster than the cruise speed", so sometimes it did, to close a gap
+   faster. *Fix:* a small penalty for every m/s above 25 m/s.
+3. *Never practised.* None of the training families looked like a person
+   on a slider: long cruises, then sudden full stops. *Fix:* a new
+   training family, `live_like`, that does exactly that.
+
+**Run 9: the AI could not see brake lights.** After run 8 we tested 60
+"press STOP" drives with the emergency brake switched OFF. Both the AI and
+the classic controller still crashed in several of them, even when the
+grey car braked no harder than 3 m/s^2. We printed one drive second by
+second. The grey car was braking hard toward a stop, but the gap was still
+100 m, so both drivers thought "plenty of room" and did nothing. Six
+seconds later stopping in time was already impossible.
+
+The reason: the AI's 5 inputs describe only ONE instant (speed, relative
+speed, gap, gap error, own acceleration). A car 100 m ahead that has just
+started braking hard looks almost exactly like a car cruising along. You
+would see its brake lights; the AI could not. In RL language, the state
+was missing information the agent needed (it was not "Markov": the best
+action depended on something it could not see).
+
+*Fixes:*
+* A 6th input: **the lead car's acceleration**. Real ACC radars measure it
+  (from how fast the relative speed changes). Now the network is
+  6 -> 64 -> 64 -> 10.
+* The "braking needed" penalty now counts the lead car's own stopping
+  distance. If the lead car (at speed vl, braking at b) keeps braking to a
+  stop, it still rolls vl^2 / (2 b) metres, and we must stop behind that
+  point. Example: lead at 15 m/s braking at 3 m/s^2 rolls 37.5 m more; we
+  do 25 m/s with an 87.5 m gap, so we need 625 / (2 x 123) = 2.5 m/s^2.
+  Brake now, even though the gap still looks big.
+* To keep the comparison fair, the classic controller gets the same
+  information: a "feed-forward" term ka x (lead acceleration), which is
+  standard in real ACC designs. Its 5 settings were re-tuned on training
+  drives with the new marking scheme.
+
+**Why the live demo also has an emergency brake.** In the live demo you
+can brake the grey car at 4 m/s^2, but ACC may only brake at 3 m/s^2. If
+the car ahead brakes harder than you are allowed to, from a short gap,
+no driver can avoid it with 3 m/s^2: it is physics, not intelligence. Real
+cars handle this with a second system, AEB (automatic emergency braking),
+that only acts when a crash is close. The demo has one too, and counts how
+often each driver needed it. A good ACC driver needs it rarely. The exam
+does not use AEB at all.
+
+Lesson: **test your AI in situations you did not design.** The exam
+measures what you thought of; playing with it finds what you did not.

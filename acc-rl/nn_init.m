@@ -6,6 +6,7 @@ function net = nn_init(n_in, n_hidden, n_out)
 % Shape of our network (a "multi-layer perceptron", MLP):
 %
 %    5 inputs  ->  64 neurons  ->  64 neurons  ->  8 outputs
+%   (the project itself uses nn_init(6, [64 64], 10), see train.m)
 %    (state)       (hidden 1)      (hidden 2)      (one Q-value per action)
 %
 % Each layer has a WEIGHT matrix W (how strongly each input matters to each

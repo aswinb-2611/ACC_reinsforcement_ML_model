@@ -104,6 +104,29 @@ switch type
         % A random but smooth speed plan: new target speed every 8 to 15 s.
         [al, vl0] = random_waypoints(is_test, dt, cfg);
 
+    case 'live_like'
+        % Like a person playing with the live demo's speed slider: a new
+        % target speed every 4 to 12 s. Sometimes faster than our cruise
+        % speed, sometimes a full stop. The lead speeds up at up to 2 m/s^2,
+        % exactly like the demo's lead car.
+        vt = zeros(1, N);
+        k = 1;
+        while k <= N
+            len = round(urand(4, 12) / dt);
+            r = rand();
+            if r < 0.25
+                v_t = urand(26, 34);           % faster than our cruise speed
+            elseif r < 0.40
+                v_t = urand(0, 3);             % (almost) a full stop
+            else
+                v_t = urand(5, 25);
+            end
+            vt(k:min(N, k + len - 1)) = v_t;
+            k = k + len;
+        end
+        a_dn = pick(is_test, [3.0 3.5], [2.5 3.5]);
+        [al, vl0] = track_targets(vt, vt(1), 2.0, a_dn, dt, cfg);
+
     case 'mixed'
         % TEST ONLY: a random drive that ALSO contains a hard brake and a
         % cut-in. The AI never trained on this combination.

@@ -12,7 +12,7 @@ function agent = train(n_episodes, seed)
 %      (exploring), and writes every moment into its replay notebook.
 %   3. After every step it studies a random handful (mini-batch) of old
 %      moments and nudges its weights to predict marks better (agent_learn).
-%   4. Every 10 episodes it takes a "mock test" on 18 fixed validation
+%   4. Every 10 episodes it takes a "mock test" on 21 fixed validation
 %      drives with NO random pedals. The best crash-free mock-test brain
 %      is kept (not simply the last one, which may have had a bad day).
 %   5. The best brain is saved to trained_agent.mat.
@@ -86,10 +86,10 @@ end
 function [best, net, hist] = train_loop(net, hp, cfg, val_scs, best, hist, ep0, fig, show)
 % The training loop itself. ep0 = how many episodes came before (for numbering).
 train_types = {'constant', 'stop_and_go', 'hard_brake', 'slow_then_fast', ...
-               'cut_in', 'random_smooth'};
+               'cut_in', 'random_smooth', 'live_like'};
 % how often each family is practised: the dangerous ones a bit more often
 % (like extra emergency-stop lessons for a learner driver)
-type_weights = [1, 1.5, 2, 1, 1.5, 1.5];
+type_weights = [1, 1.5, 2, 1, 1.5, 1.5, 2];
 type_cum = cumsum(type_weights) / sum(type_weights);
 
 target = net;                                   % target starts as an exact copy
@@ -184,7 +184,7 @@ function val_scs = make_val_set(cfg)
 % fixed validation drives (mock test), built from their own seed, without
 % disturbing the training random numbers
 st = save_rng();
-val_scs = make_scenarios('val', 3, cfg.seed_val, cfg);     % 18 drives
+val_scs = make_scenarios('val', 3, cfg.seed_val, cfg);     % 21 drives
 load_rng(st);
 end
 

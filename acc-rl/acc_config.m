@@ -35,7 +35,7 @@ cfg.vl_max  = 40;             % lead car speed is kept between 0 and 40 m/s
 % like a gear lever with fixed positions instead of a smooth pedal).
 cfg.actions = [-3, -2, -1, -0.5, -0.25, 0, 0.25, 0.5, 1, 2];
 cfg.nA      = numel(cfg.actions);
-cfg.nS      = 5;              % the AI sees 5 numbers (the "state"), see env_observe.m
+cfg.nS      = 6;              % the AI sees 6 numbers (the "state"), see env_observe.m
 
 % ---------------- Reward weights (the marking scheme) ----------------
 cfg.rw.w_speed_follow = 0.3;  % when following: small share of marks for speed
@@ -49,7 +49,9 @@ cfg.rw.brake_limit    = 1.5;  % braking NEEDED to avoid a crash above this [m/s^
 cfg.rw.k_brake        = 1.0;  % penalty weight for "you will soon need hard braking"
 cfg.rw.k_acc          = 0.05; % comfort: penalty for strong acceleration
 cfg.rw.k_jerk         = 0.20; % comfort: penalty for jerk (sudden pedal changes)
-cfg.rw.collision      = -100; % very large penalty for a crash
+cfg.rw.k_over         = 0.15; % penalty per m/s ABOVE the cruise speed (ACC must not speed)
+cfg.rw.safety_cap     = 2.5;  % the safety penalties together never exceed this per step
+cfg.rw.collision      = -300; % very large penalty for a crash (always worse than surviving)
 
 % ---------------- Reproducibility ----------------
 cfg.seed_train = 1;           % random seed for training

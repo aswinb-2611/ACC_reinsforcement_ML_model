@@ -49,7 +49,7 @@ else
 end
 
 % --- safety penalties
-p.close = 0; p.danger = 0; p.ttc = 0; p.brake = 0;
+p.close = 0; p.danger = 0; p.ttc = 0; p.brake = 0; a_need = 0;
 if in_range && gap < d_safe
     p.close = rw.k_close * ((d_safe - gap) / d_safe)^2;       % gently too close
 end
@@ -68,6 +68,19 @@ if in_range && closing_speed > 0
     % 18^2/(2*73) = 2.2 m/s^2, close to our 3 m/s^2 limit, so it is risky.
     % This warns EARLY at high closing speeds, when the gap still looks big.
     a_need = closing_speed^2 / (2 * max(gap, 0.1));
+end
+if in_range && env.al < -0.5 && env.vl > 0
+    % The car ahead is BRAKING. If it keeps braking until it stops, it
+    % still rolls  vl^2 / (2*b)  metres, and we must stop behind that
+    % point (with 2 m spare). So the braking we need is
+    %     v^2 / (2 * (gap + lead's stopping distance - 2))
+    % Example: lead at 15 m/s braking at 3 m/s^2 rolls 37.5 m more; we
+    % do 25 m/s with 87.5 m gap, so we need 625/(2*123) = 2.5 m/s^2: brake NOW,
+    % even though the gap is still more than twice the safe distance.
+    d_lead = env.vl^2 / (2 * -env.al);
+    a_need = max(a_need, v^2 / (2 * max(gap + d_lead - 2, 0.1)));
+end
+if in_range
     if a_need > rw.brake_limit
         p.brake = min(3, rw.k_brake * (a_need - rw.brake_limit));   % capped at 3
     end
@@ -81,7 +94,18 @@ p.acc  = rw.k_acc  * (env.ae / 3)^2;
 % the penalty the same shape as the metric you care about.)
 p.jerk = rw.k_jerk * (jerk / 5)^2;
 
-r = p.task - p.close - p.danger - p.ttc - p.brake - p.acc - p.jerk;
+% --- driving faster than the speed the driver chose is not allowed
+p.over = rw.k_over * max(0, v - cfg.v_set);
+
+% --- the safety penalties together are capped. Why? Near a crash they can
+% add up to about 9 marks per step. If staying alive in a tight spot costs
+% more, in total, than one crash, the AI learns to "give up" and crash on
+% purpose (we saw exactly this: it let go of the brake and hit a stopped
+% car). With a cap of 2.5 per step and a crash costing 300, surviving is
+% always the better choice.
+p.safety = min(rw.safety_cap, p.close + p.danger + p.ttc + p.brake);
+
+r = p.task - p.safety - p.over - p.acc - p.jerk;
 
 % --- crash
 if gap <= 0

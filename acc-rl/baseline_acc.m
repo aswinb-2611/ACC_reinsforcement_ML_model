@@ -24,9 +24,11 @@ function a = baseline_acc(env, cfg, gains)
 % the TRAINING scenarios, scored with the SAME reward the AI is trained on.
 
 if nargin < 3 || isempty(gains)
-    gains = [0.5625, 0.70, 1.25, 14];  % [kp kd kv e_max] from tune_baseline.m
+    gains = [0.45, 0.70, 1.25, 20, 0.6];  % [kp kd kv e_max ka] from tune_baseline.m
 end
 kp = gains(1); kd = gains(2); kv = gains(3); e_max = gains(4);
+ka = 0;
+if numel(gains) >= 5, ka = gains(5); end
 
 v = env.ve;
 d_safe = cfg.d0 + cfg.t_gap * v;
@@ -34,7 +36,9 @@ d_safe = cfg.d0 + cfg.t_gap * v;
 a_cruise = kv * (cfg.v_set - v);
 if env.gap <= cfg.range                      % radar sees a car ahead
     e = min(env.gap - d_safe, e_max);         % spacing error, capped
-    a_follow = kp * e + kd * (env.vl - v);
+    % ka * (lead acceleration) is "feed-forward": if the car ahead brakes,
+    % we start braking with it at once, before the gap has shrunk.
+    a_follow = kp * e + kd * (env.vl - v) + ka * env.al;
     a = min(a_cruise, a_follow);
 else                                         % road ahead is clear
     a = a_cruise;

@@ -24,6 +24,7 @@ if ~isfield(ctrl, 'actions'), ctrl.actions = cfg.actions; end
 while ~env.done
     if strcmp(ctrl.type, 'rl')
         s = env_observe(env, cfg);
+        s = s(1:size(ctrl.net.W1, 2));         % brains before run 9 saw only the first 5 numbers
         q = nn_forward(ctrl.net, s);           % Q-value for each action
         [~, ia] = max(q);                      % pick the best one
         a_cmd = ctrl.actions(ia);

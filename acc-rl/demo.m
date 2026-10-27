@@ -1,21 +1,22 @@
 function demo(scenario_type, which, save_gif)
-% DEMO  The 3D animated demo. You drive the lead car, the AI reacts live.
+% DEMO  The 3D driving demo. You drive the grey car, the AI follows it.
 %
-%   demo()                        % LIVE: you set the lead car's speed
+%   demo()                        % LIVE: you drive the grey lead car
 %   demo('hard_brake')            % REPLAY: an unseen exam drive, played back
 %   demo('cut_in', 2)             % the 2nd drive of that scenario family
 %   demo('mixed', 1, true)        % also save an animated GIF into results/
 %
-% In LIVE mode, use the buttons at the top (mouse clicks):
-%   slider, -1 m/s, +1 m/s     change the lead car's speed
-%   Camera                     switch chase camera <-> isometric view
-%   Pause                      pause / continue
-%   Restart                    start the drive again
+% LIVE MODE: you control the GREY car in front. The BLUE car is the AI: it
+% decides by itself how to follow you. Controls (top bar, or the keyboard):
+%   Up / Down arrow, slider, -1 / +1   change your speed
+%   STOP  (or S)                        brake your car to a stop
+%   Camera (or C)                       chase view -> drone view -> driver view
+%   Compare (or M)                      also show the classic controller,
+%                                       driving the same road in the left lane
+%   Graphs (or G)                       show / hide speed, gap and accel graphs
+%   Pause (or Space), Restart (or R)
 %
-
-% In REPLAY mode:
-%   Replay                     play the drive again
-%   Camera                     switch the camera
+% REPLAY MODE: plays one of the unseen exam drives. Replay plays it again.
 %
 % The window stays open until YOU close it.
 
@@ -36,67 +37,81 @@ end
 
 % ======================================================================
 function run_live(cfg, agent)
-% you drive the lead car, and both drivers react to it on the screen
+% you drive the lead car, and the AI reacts to it on the screen
 
 if ~can_show_figures()
     error('Live mode needs a screen. Use demo(''hard_brake'') to save an animation instead.');
 end
 
-[fig, ax, gx] = make_window('ACC demo: you drive the grey lead car', 'on');
+[fig, ax, UI] = make_window('ACC demo: you drive the grey car', 'on');
 ui = new_ui(22);
+ui.compare = false;                    % one car pair to start with: you and the AI
 
-% the speed slider, along the top of the window
-ui.slider = uicontrol(fig, 'Style', 'slider', 'Min', 0, 'Max', 35, 'Value', 22, ...
-                      'Units', 'normalized', 'Position', [0.15 0.955 0.42 0.03], ...
+% the top bar: speed slider and buttons
+uicontrol(UI.bar, 'Style', 'text', 'String', 'Your speed', 'Units', 'normalized', ...
+          'Position', [0.005 0.15 0.08 0.7], 'FontSize', 10, 'FontWeight', 'bold', ...
+          'BackgroundColor', UI.bar_col, 'ForegroundColor', [1 1 1]);
+ui.slider = uicontrol(UI.bar, 'Style', 'slider', 'Min', 0, 'Max', 35, 'Value', 22, ...
+                      'Units', 'normalized', 'Position', [0.09 0.28 0.22 0.44], ...
                       'Callback', @(s, e) on_slider(s, fig));
-uicontrol(fig, 'Style', 'text', 'String', 'Lead speed:', ...
-          'Units', 'normalized', 'Position', [0.01 0.95 0.13 0.04], ...
-          'BackgroundColor', get(fig, 'Color'), 'HorizontalAlignment', 'right', 'FontSize', 10);
-% buttons: you can click these with the mouse, no keyboard needed
-add_button(fig, '-1 m/s', [0.59 0.955 0.06 0.035], 'slower');
-add_button(fig, '+1 m/s', [0.66 0.955 0.06 0.035], 'faster');
-add_button(fig, 'Camera', [0.73 0.955 0.09 0.035], 'camera');
-add_button(fig, 'Pause',  [0.83 0.955 0.07 0.035], 'pause');
-add_button(fig, 'Restart',[0.91 0.955 0.08 0.035], 'restart');
-uicontrol(fig, 'Style', 'text', ...
-          'String', 'Slider or buttons: lead speed     Camera: chase / overview     Pause     Restart     close the window to exit', ...
-          'Units', 'normalized', 'Position', [0.03 0.0 0.94 0.03], ...
-          'BackgroundColor', get(fig, 'Color'));
+labels  = {'-1 m/s', '+1 m/s', 'STOP', 'Camera', 'Compare', 'Graphs', 'Pause', 'Restart'};
+actions = {'slower', 'faster', 'stop', 'camera', 'compare', 'graphs', 'pause', 'restart'};
+for i = 1:numel(labels)
+    b = add_button(UI.bar, fig, labels{i}, [0.32 + 0.0825 * (i - 1) 0.15 0.075 0.7], actions{i});
+    if strcmp(actions{i}, 'stop')
+        set(b, 'BackgroundColor', [0.75 0.12 0.10], 'ForegroundColor', [1 1 1]);
+    end
+end
+set(UI.help, 'String', ['You drive the GREY car (arrow keys, slider or buttons). ', ...
+                        'The BLUE car is the AI: it decides by itself.   Close the window to exit.']);
 set(fig, 'UserData', ui, 'KeyPressFcn', @(s, e) on_key(s, e, fig));
 
 W = demo_world('build', ax);
-G = demo_graphs('build', gx, cfg);
+G = demo_graphs('build', UI.gx, cfg);
 
 sc = demo_sim('scenario', cfg);
 sim = demo_sim('reset', sc, cfg);
 hist = demo_hist('init');
 hist = demo_hist('push', hist, sim, cfg);
 
-% the main loop: move the world, draw it, repeat, until the window is closed
+% the main loop: move the world, draw it, repeat, until the window is closed.
+% The number of 0.1 s steps per picture follows the real clock, so the
+% drive runs in real time even on a slower computer.
+t_last = tic;
 while ishandle(fig)
-    ui = get(fig, 'UserData');
-    if ui.restart
-        sim = demo_sim('reset', sc, cfg);
-        hist = demo_hist('init');
-        hist = demo_hist('push', hist, sim, cfg);
-        ui.restart = false;
-        set(fig, 'UserData', ui);
-    end
-
-    if ~ui.paused && ~sim.stopped
-        for j = 1:2                      % two 0.1 s steps per picture keeps it smooth
-            sim = demo_sim('step', sim, ui.vt, agent, cfg);
+    try
+        ui = get(fig, 'UserData');
+        if ui.restart
+            sim = demo_sim('reset', sc, cfg);
+            hist = demo_hist('init');
             hist = demo_hist('push', hist, sim, cfg);
-            if sim.stopped, break; end
+            ui.restart = false;
+            ui.vt = sc.vl0;                      % your car starts at 22 m/s again
+            if ishandle(ui.slider), set(ui.slider, 'Value', ui.vt); end
+            set(fig, 'UserData', ui);
         end
-    end
 
-    n = numel(hist.t);
-    prefix = sprintf('LIVE: lead car at %.0f m/s (you set this)', ui.vt);
-    demo_world('draw', W, ax, hist, n, ui.cam, prefix);
-    demo_graphs('update', G, hist, n, cfg);
-    drawnow;
-    pause(0.03);
+        elapsed = toc(t_last);
+        t_last = tic;
+        nsteps = min(5, max(1, round(elapsed / cfg.dt)));
+        if ~ui.paused && ~sim.stopped
+            for j = 1:nsteps
+                sim = demo_sim('step', sim, ui.vt, agent, cfg);
+                hist = demo_hist('push', hist, sim, cfg);
+                if sim.stopped, break; end
+            end
+        end
+
+        n = numel(hist.t);
+        W = demo_world('draw', W, ax, hist, n, ui.cam, ui.compare);
+        update_hud(UI, hist, n, ui, cfg, '');
+        show_graphs(UI, G, hist, n, ui, cfg);
+        drawnow;
+        pause(0.01);
+    catch err
+        if ~ishandle(fig), break; end     % the window was closed mid-frame: just stop
+        rethrow(err);
+    end
 end
 end
 
@@ -119,33 +134,26 @@ bl.type = 'baseline';
 [~, la] = run_episode(sc, ai, cfg);
 [~, lb] = run_episode(sc, bl, cfg);
 hist = demo_hist('from_logs', la, lb, cfg);
-n = numel(hist.t);
-prefix = sprintf('REPLAY: %s drive %d (unseen exam)', scenario_type, pick);
+title_txt = sprintf('REPLAY: "%s" drive %d of the unseen exam. Both drivers face the same lead car.', ...
+                    strrep(scenario_type, '_', ' '), pick);
 
 show = can_show_figures();
-if show
-    vis = 'on';
-else
-    vis = 'off';                         % no screen: draw invisibly, save files instead
-end
-[fig, ax, gx] = make_window('ACC demo: replay of an unseen drive', vis);
+if show, vis = 'on'; else, vis = 'off'; end
+[fig, ax, UI] = make_window('ACC demo: replay of an unseen exam drive', vis);
 ui = new_ui(0);
-ui.slider = [];
-ui.cam = 'chase';
+ui.compare = true;                     % in a replay, compare both drivers
 set(fig, 'UserData', ui, 'KeyPressFcn', @(s, e) on_key(s, e, fig));
-if show
-    add_button(fig, 'Camera', [0.73 0.955 0.09 0.035], 'camera');
-    add_button(fig, 'Replay', [0.84 0.955 0.12 0.035], 'replay');
-    uicontrol(fig, 'Style', 'text', ...
-              'String', 'Replay: play the drive again     Camera: chase / overview     close the window to exit', ...
-              'Units', 'normalized', 'Position', [0.03 0.0 0.94 0.03], ...
-              'BackgroundColor', get(fig, 'Color'));
+labels  = {'Camera', 'Compare', 'Graphs', 'Replay'};
+actions = {'camera', 'compare', 'graphs', 'replay'};
+for i = 1:numel(labels)
+    add_button(UI.bar, fig, labels{i}, [0.62 + 0.0825 * (i - 1) 0.15 0.075 0.7], actions{i});
 end
+set(UI.help, 'String', 'Grey car = the lead car of the exam drive.  Blue = AI.  Red = classic ACC.  Close the window to exit.');
 
 W = demo_world('build', ax);
-G = demo_graphs('build', gx, cfg);
+G = demo_graphs('build', UI.gx, cfg);
 
-frames = play(fig, W, ax, G, hist, cfg, prefix, save_gif, show);
+[W, frames] = play(fig, W, ax, UI, G, hist, cfg, title_txt, save_gif, show);
 
 if ~show
     % no screen: save a picture of the last moment, and the GIF if asked
@@ -159,86 +167,197 @@ if ~show
 end
 
 % a screen is available: keep the window open until the user closes it
-last_cam = get(fig, 'UserData').cam;
+n = numel(hist.t);
+last = get(fig, 'UserData');
 while ishandle(fig)
-    ui = get(fig, 'UserData');
-    if ui.replay
-        ui.replay = false;
-        set(fig, 'UserData', ui);
-        play(fig, W, ax, G, hist, cfg, prefix, false, true);
-        last_cam = ui.cam;
-    elseif ~strcmp(ui.cam, last_cam)
-        % the camera was switched: redraw the last moment from the new view
-        last_cam = ui.cam;
-        demo_world('draw', W, ax, hist, n, ui.cam, prefix);
-        drawnow;
+    try
+        ui = get(fig, 'UserData');
+        if ui.replay
+            ui.replay = false;
+            set(fig, 'UserData', ui);
+            W = play(fig, W, ax, UI, G, hist, cfg, title_txt, false, true);
+        elseif ~strcmp(ui.cam, last.cam) || ui.compare ~= last.compare || ui.graphs ~= last.graphs
+            % a button was pressed: redraw the last moment with the new setting
+            W = demo_world('draw', W, ax, hist, n, ui.cam, ui.compare);
+            update_hud(UI, hist, n, ui, cfg, title_txt);
+            show_graphs(UI, G, hist, n, ui, cfg);
+            drawnow;
+        end
+        last = ui;
+        pause(0.05);
+    catch err
+        if ~ishandle(fig), break; end
+        rethrow(err);
     end
-    pause(0.05);
 end
 end
 
 % ======================================================================
-function frames = play(fig, W, ax, G, hist, cfg, prefix, save_gif, show)
-% plays the recorded moments in order. Returns pictures if a GIF is wanted.
+function [W, frames] = play(fig, W, ax, UI, G, hist, cfg, title_txt, save_gif, show)
+% plays the recorded moments in real time. Returns pictures if a GIF is wanted.
 n = numel(hist.t);
-stride = 2;                              % every 0.2 s of drive becomes one picture
-if ~show
-    stride = 10;                         % a saved GIF uses fewer pictures (1 s each, keeps the file smaller)
-end
-ks = unique([1:stride:n, n]);            % always end on the very last moment
 frames = {};
-for k = ks
-    t0 = tic;
-    if ~ishandle(fig), break; end
+k = 1;
+t_last = tic;
+while k <= n
+    if ~ishandle(fig), return; end
     ui = get(fig, 'UserData');
-    demo_world('draw', W, ax, hist, k, ui.cam, prefix);
-    demo_graphs('update', G, hist, k, cfg);
+    W = demo_world('draw', W, ax, hist, k, ui.cam, ui.compare);
+    update_hud(UI, hist, k, ui, cfg, title_txt);
+    show_graphs(UI, G, hist, k, ui, cfg);
     drawnow;
     if save_gif
         frames{end + 1} = grab_frame(fig); %#ok<AGROW>
     end
+    if k == n, break; end
     if show
-        % keep the playback in real time: about 0.2 s of drive per picture
-        pause(max(0, stride * cfg.dt - toc(t0)));
+        % skip ahead by however much real time has passed (real-time playback)
+        pause(0.01);
+        elapsed = toc(t_last);
+        t_last = tic;
+        k = min(n, k + max(1, round(elapsed / cfg.dt)));
+    else
+        k = min(n, k + 10);              % a saved GIF: one picture per second of drive
     end
 end
 end
 
 % ======================================================================
-function [fig, ax, gx] = make_window(name, visible)
-% creates the window: the big 3D scene on top, three small graphs below
-fig = figure('Name', name, 'NumberTitle', 'off', 'Color', [0.94 0.94 0.94], ...
-             'Position', [40 40 1000 860], 'MenuBar', 'none', 'ToolBar', 'none', ...
-             'Visible', visible);
-ax = axes('Parent', fig, 'Units', 'normalized', 'Position', [0.02 0.41 0.96 0.40]);
-% use the Position we ask for exactly (some graphics systems otherwise resize 3D axes)
+function [fig, ax, UI] = make_window(name, visible)
+% the window: the 3D scene fills it; a bar on top; text and graphs on top of the scene
+fig = figure('Name', name, 'NumberTitle', 'off', 'Position', [40 40 1280 800], ...
+             'MenuBar', 'none', 'ToolBar', 'none', 'Visible', visible);
 try
-    set(ax, 'ActivePositionProperty', 'position');
+    theme(fig, 'light');                 % MATLAB R2025a+: ignore the dark desktop theme
 catch
 end
+set(fig, 'Color', [0.10 0.11 0.13]);
 
-% a solid strip along the top, so the tops of the trees cannot show behind the controls
-uicontrol(fig, 'Style', 'text', 'String', '', 'Units', 'normalized', ...
-          'Position', [0 0.935 1 0.065], 'BackgroundColor', get(fig, 'Color'));
-gx(1) = axes('Parent', fig, 'Units', 'normalized', 'Position', [0.05 0.07 0.26 0.20]);
-gx(2) = axes('Parent', fig, 'Units', 'normalized', 'Position', [0.38 0.07 0.26 0.20]);
-gx(3) = axes('Parent', fig, 'Units', 'normalized', 'Position', [0.71 0.07 0.26 0.20]);
+ax = axes('Parent', fig, 'Units', 'normalized', 'Position', [0 0 1 0.94]);
+try
+    set(ax, 'PositionConstraint', 'innerposition');     % newer MATLAB
+catch
+    try
+        set(ax, 'ActivePositionProperty', 'position');  % older MATLAB and Octave
+    catch
+    end
+end
+
+% the control bar along the top
+UI.bar_col = [0.13 0.14 0.17];
+UI.bar = uipanel('Parent', fig, 'Units', 'normalized', 'Position', [0 0.94 1 0.06], ...
+                 'BackgroundColor', UI.bar_col, 'BorderType', 'none');
+
+% the heads-up display (HUD): four lines of live numbers, top left
+hud_bg = [0.07 0.08 0.10];
+for i = 1:4
+    UI.hud(i) = uicontrol(fig, 'Style', 'text', 'String', '', 'Units', 'normalized', ...
+                          'Position', [0.01 0.895 - 0.034 * (i - 1) 0.66 0.034], ...
+                          'FontSize', 11, 'HorizontalAlignment', 'left', ...
+                          'BackgroundColor', hud_bg, 'ForegroundColor', [0.95 0.95 0.95]);
+end
+set(UI.hud(1), 'FontWeight', 'bold', 'ForegroundColor', [1 0.86 0.35]);
+
+% a big banner for crashes and emergency braking (hidden until needed)
+UI.banner = uicontrol(fig, 'Style', 'text', 'String', '', 'Units', 'normalized', ...
+                      'Position', [0.30 0.50 0.40 0.07], 'FontSize', 20, 'FontWeight', 'bold', ...
+                      'BackgroundColor', [0.75 0.10 0.10], 'ForegroundColor', [1 1 1], ...
+                      'Visible', 'off');
+
+% the graphs live on a white panel at the bottom (hidden until Graphs is pressed)
+UI.gpanel = uipanel('Parent', fig, 'Units', 'normalized', 'Position', [0 0.03 1 0.29], ...
+                    'BackgroundColor', [1 1 1], 'BorderType', 'none', 'Visible', 'off');
+for i = 1:3
+    UI.gx(i) = axes('Parent', UI.gpanel, 'Units', 'normalized', ...
+                    'Position', [0.05 + 0.33 * (i - 1) 0.22 0.27 0.64]);
+end
+
+% one line of help along the bottom
+UI.help = uicontrol(fig, 'Style', 'text', 'String', '', 'Units', 'normalized', ...
+                    'Position', [0 0 1 0.03], 'FontSize', 10, ...
+                    'BackgroundColor', hud_bg, 'ForegroundColor', [0.85 0.85 0.85]);
+end
+
+% ======================================================================
+function update_hud(UI, hist, k, ui, cfg, title_txt)
+% writes the live numbers in the four HUD lines, and shows the banner
+if isempty(title_txt)
+    l1 = sprintf('YOU drive the GREY car:  target %2.0f m/s,  now %4.1f m/s', ui.vt, hist.vl(k));
+else
+    l1 = title_txt;
+end
+l2 = sprintf('AI (blue):   %4.1f m/s    gap %5.1f m    safe gap %5.1f m    ->  %s', ...
+             hist.ve_a(k), hist.gap_a(k), hist.dsafe(k), ...
+             status_of(hist.gap_a(k), hist.ve_a(k), hist.vl(k), hist.ae_a(k), hist.aeb_a(k), hist.dsafe(k), cfg));
+if ui.compare
+    l3 = sprintf('Classic ACC (red, left lane):   %4.1f m/s    gap %5.1f m    ->  %s', ...
+                 hist.ve_b(k), hist.gap_b(k), ...
+                 status_of(hist.gap_b(k), hist.ve_b(k), hist.vl(k), hist.ae_b(k), hist.aeb_b(k), hist.dsafe_b(k), cfg));
+else
+    l3 = 'Press Compare to watch the classic controller drive the same road in the left lane.';
+end
+l4 = sprintf('Emergency brake (AEB) needed:  AI %d,  classic %d        time %5.1f s        camera: %s', ...
+             hist.n_aeb_a(k), hist.n_aeb_b(k), hist.t(k), ui.cam);
+set(UI.hud(1), 'String', l1);
+set(UI.hud(2), 'String', l2);
+set(UI.hud(3), 'String', l3);
+set(UI.hud(4), 'String', l4);
+
+% the banner: a crash is shown in red, emergency braking in orange
+if hist.gap_a(k) <= 0
+    set(UI.banner, 'String', 'AI CRASHED  -  press Restart', 'BackgroundColor', [0.75 0.10 0.10], 'Visible', 'on');
+elseif ui.compare && hist.gap_b(k) <= 0
+    set(UI.banner, 'String', 'Classic ACC crashed', 'BackgroundColor', [0.75 0.10 0.10], 'Visible', 'on');
+elseif hist.aeb_a(k)
+    set(UI.banner, 'String', 'AI: EMERGENCY BRAKE!', 'BackgroundColor', [0.85 0.42 0.05], 'Visible', 'on');
+else
+    set(UI.banner, 'Visible', 'off');
+end
+end
+
+% ======================================================================
+function s = status_of(gap, v, vl, a, aeb_on, dsafe, cfg)
+% one short word or phrase describing what a driver is doing right now
+if gap <= 0
+    s = 'CRASHED';
+elseif aeb_on
+    s = 'EMERGENCY BRAKE!';
+elseif a < -0.6
+    s = 'braking';
+elseif gap <= cfg.range && (vl <= cfg.v_set || gap < dsafe)
+    s = 'following the grey car';
+else
+    s = sprintf('cruising at the set speed (%d m/s)', cfg.v_set);
+end
+end
+
+% ======================================================================
+function show_graphs(UI, G, hist, k, ui, cfg)
+% the graphs are drawn only while they are switched on
+if ui.graphs
+    set(UI.gpanel, 'Visible', 'on');
+    demo_graphs('update', G, hist, k, cfg);
+else
+    set(UI.gpanel, 'Visible', 'off');
+end
 end
 
 % ======================================================================
 function ui = new_ui(vt)
-% the controls shared between the window and the main loop (stored in the window)
-ui.vt      = vt;           % lead car's target speed [m/s], from the slider
-ui.cam     = 'chase';      % camera: 'chase' or 'iso'
-ui.restart = false;        % set by R
-ui.paused  = false;        % set by Space
-ui.replay  = false;        % set by the Replay button
-ui.slider  = [];           % handle of the slider (live mode only)
+% the settings shared between the buttons and the main loop (kept in the window)
+ui.vt      = vt;           % your car's target speed [m/s]
+ui.cam     = 'chase';      % camera: 'chase', 'drone' or 'driver'
+ui.compare = false;        % show the classic controller in the left lane?
+ui.graphs  = false;        % show the graphs?
+ui.restart = false;
+ui.paused  = false;
+ui.replay  = false;
+ui.slider  = [];           % handle of the speed slider (live mode only)
 end
 
 % ======================================================================
 function on_slider(src, fig)
-% the slider was moved: remember the new lead car speed
+% the slider was moved: remember the new speed
 ui = get(fig, 'UserData');
 ui.vt = get(src, 'Value');
 set(fig, 'UserData', ui);
@@ -246,11 +365,14 @@ end
 
 % ======================================================================
 function on_key(~, ev, fig)
-% a key was pressed in the window: map it to the same action as a button
+% a key was pressed: do the same thing as the matching button
 switch ev.Key
     case 'uparrow',   on_action(fig, 'faster');
     case 'downarrow', on_action(fig, 'slower');
+    case 's',         on_action(fig, 'stop');
     case 'c',         on_action(fig, 'camera');
+    case 'm',         on_action(fig, 'compare');
+    case 'g',         on_action(fig, 'graphs');
     case 'r',         on_action(fig, 'restart');
     case 'space',     on_action(fig, 'pause');
 end
@@ -262,11 +384,21 @@ function on_action(fig, action)
 ui = get(fig, 'UserData');
 switch action
     case 'faster'
-        ui.vt = min(35, ui.vt + 1);
+        ui.vt = min(35, round(ui.vt) + 1);
     case 'slower'
-        ui.vt = max(0, ui.vt - 1);
+        ui.vt = max(0, round(ui.vt) - 1);
+    case 'stop'
+        ui.vt = 0;
     case 'camera'
-        if strcmp(ui.cam, 'chase'), ui.cam = 'iso'; else, ui.cam = 'chase'; end
+        switch ui.cam
+            case 'chase',  ui.cam = 'drone';
+            case 'drone',  ui.cam = 'driver';
+            otherwise,     ui.cam = 'chase';
+        end
+    case 'compare'
+        ui.compare = ~ui.compare;
+    case 'graphs'
+        ui.graphs = ~ui.graphs;
     case 'pause'
         ui.paused = ~ui.paused;
     case 'restart'
@@ -281,11 +413,11 @@ set(fig, 'UserData', ui);
 end
 
 % ======================================================================
-function add_button(fig, label, pos, action)
+function b = add_button(parent, fig, label, pos, action)
 % a clickable button; clicking it does the action named in 'action'
-uicontrol(fig, 'Style', 'pushbutton', 'String', label, 'FontSize', 10, ...
-          'Units', 'normalized', 'Position', pos, ...
-          'Callback', @(s, e) on_action(fig, action));
+b = uicontrol(parent, 'Style', 'pushbutton', 'String', label, 'FontSize', 10, ...
+              'FontWeight', 'bold', 'Units', 'normalized', 'Position', pos, ...
+              'Callback', @(s, e) on_action(fig, action));
 end
 
 % ======================================================================
@@ -306,7 +438,7 @@ function frame = grab_frame(fig)
 % takes a picture of the window. MATLAB has getframe; Octave saves a PNG.
 try
     fr = getframe(fig);
-    frame = fr.cdata(1:2:end, 1:2:end, :);      % half size keeps the GIF small
+    frame = fr.cdata(1:2:end, 1:2:end, :);      % half size keeps the GIF smaller
 catch
     tmp = [tempname(), '.png'];
     print(fig, '-dpng', '-r60', tmp);
